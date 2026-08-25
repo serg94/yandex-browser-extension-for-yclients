@@ -11,8 +11,9 @@
    * 2. Appends a "new: N" counter badge at the end of every
    *    `.workspace-header__left` element, where N is the number of elements
    *    matching `[data-locator^="client_name_new_timetable-record_"]`.
-   *    The badge is never hidden; its text only updates while N > 0 so it
-   *    doesn't blink with "new: 0" as the page re-renders.
+   *    The badge is never hidden; it shows "new: 0" only when the page's
+   *    loading stub (.page-loading-stub) is not visible, so it doesn't blink
+   *    with "new: 0" while records are still loading.
    * 3. While hovering a badge, adds the class
    *    `workspace-grid-record__highlighted` to every `.workspace-grid-record`
    *    row that contains a matching element. The class is removed on hover-out.
@@ -136,19 +137,39 @@
     return badge
   }
 
+  // The page's loading stub, shown while records are still being loaded.
+  const LOADING_SELECTOR = '.page-loading-stub'
+
+  /** True while the page's loading stub is visible (records not loaded yet). */
+  function isPageLoading() {
+    const stub = document.querySelector(LOADING_SELECTOR)
+    if (!stub) return false
+    const style = getComputedStyle(stub)
+    return (
+      style.display !== 'none' &&
+      style.visibility !== 'hidden' &&
+      stub.getClientRects().length > 0
+    )
+  }
+
   /** Refresh the counter badge in every header on the page. */
   function updateBadges() {
     const count = document.querySelectorAll(RECORD_SELECTOR).length
+    const pageLoading = isPageLoading()
     const headers = document.querySelectorAll(HEADER_SELECTOR)
     for (const header of headers) {
       const badge = getBadge(header)
-      // Don't hide the badge, but never write "new: 0" into it: the count
-      // briefly drops to 0 during re-renders, which would otherwise make the
-      // badge blink between "new: N" and "new: 0".
       if (count > 0) {
         const text = 'new: ' + count
         if (badge.textContent !== text) {
           badge.textContent = text
+        }
+      } else if (!pageLoading) {
+        // Page settled and there really are no new records — safe to show 0
+        // (while the loading stub is visible we leave the text untouched so
+        // the badge doesn't blink with "new: 0" during loading).
+        if (badge.textContent !== 'new: 0') {
+          badge.textContent = 'new: 0'
         }
       }
     }
@@ -241,6 +262,9 @@
           processElement(parent)
         }
         scheduleRescan()
+      } else if (mutation.type === 'attributes') {
+        // The loading stub's visibility may have changed (class/style).
+        updateBadges()
       }
     }
   })
@@ -253,6 +277,8 @@
       childList: true,
       subtree: true,
       characterData: true,
+      attributes: true,
+      attributeFilter: ['class', 'style'],
     })
   }
 

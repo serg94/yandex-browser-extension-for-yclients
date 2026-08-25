@@ -16,7 +16,9 @@ A Yandex Browser (and Chrome/Chromium) extension with tools for
 2. **Shows a "new" records counter.** Appends a `new: N` badge at the end of
    every `.workspace-header__left` element, where `N` is the number of elements
    matching `[data-locator^="client_name_new_timetable-record_"]` currently on
-   the page.
+   the page. When there are no new records it shows `new: 0` — but only once
+   the page's loading stub (`.page-loading-stub`) is hidden, so it doesn't
+   flash `new: 0` while records are still loading.
 
 3. **Highlights new records on hover.** While the mouse is over a badge, every
    `.workspace-grid-record` row that contains a matching
@@ -59,6 +61,8 @@ The same steps work in Chrome/Edge (use `chrome://extensions` / `edge://extensio
 - To count/highlight a different set of records, change `RECORD_SELECTOR` in
   `content.js`.
 - To change the header the badge is appended to, change `HEADER_SELECTOR`.
+- The loading indicator that suppresses `new: 0` is `LOADING_SELECTOR`
+  (`.page-loading-stub` by default) in `content.js`.
 - The badge style (colors, padding) is set in `getBadge()` in `content.js`.
 - The highlight class and the rows it is applied to are `HIGHLIGHT_CLASS` and
   `RECORD_ROW_SELECTOR` in `content.js`.
