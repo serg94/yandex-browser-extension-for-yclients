@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "YClients: Hide Yandex Maps Comments",
+  "version": "1.2.0",
+  "description": "Hides 'Запись создана через Яндекс.Карты' comments, shows a 'new: N' records counter, and highlights new records on hover on yclients.com.",
+  "permissions": [],
+  "host_permissions": ["*://*.yclients.com/*"],
+  "content_scripts": [
+    {
+      "matches": ["*://*.yclients.com/*", "*://yclients.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
