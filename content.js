@@ -4,106 +4,74 @@
   /**
    * YClients Tools
    *
-   * 1. Hides elements matching `.workspace-grid-record-comment` whose text is
-   *    exactly the auto-generated "Запись создана через Яндекс.Карты" comment.
-   *    If a comment contains that text (without its wrapping brackets) next to
-   *    other content, only the generated part is removed from the comment text.
-   * 2. Appends a "new: N" counter badge at the end of every
-   *    `.workspace-header__left` element, where N is the number of elements
-   *    matching `[data-locator^="client_name_new_timetable-record_"]`.
-   *    The badge is never hidden; it shows "new: 0" only when the page's
-   *    loading stub (.page-loading-stub) is not visible, so it doesn't blink
-   *    with "new: 0" while records are still loading.
-   * 3. While hovering a badge, adds the class
-   *    `workspace-grid-record__highlighted` to every `.workspace-grid-record`
-   *    row that contains a matching element. The class is removed on hover-out.
+   * 1. Cleans `.workspace-grid-record-comment` elements containing the
+   *    auto-generated "Запись создана через Яндекс.Карты" text:
+   *    - exact match  -> the element is hidden;
+   *    - partial match (the text without its wrapping brackets) -> that part
+   *      is stripped from the comment, the rest stays.
+   * 2. Appends a "new: N" badge to every `.workspace-header__left`. The badge
+   *    shows "new: 0" only when the page is settled (the `.page-loading-stub`
+   *    is not visible), so it doesn't blink with "new: 0" while loading.
+   * 3. Hovering a badge highlights the matching `.workspace-grid-record` rows
+   *    with `workspace-grid-record__highlighted`.
    *
-   * The site renders records dynamically (AJAX / framework re-renders), so we:
-   *   1. Run an initial scan on page load.
-   *   2. Watch the DOM with a MutationObserver and hide new matches / refresh
-   *      counters / keep highlights fresh as the page changes.
-   *   3. Debounce a full re-scan to catch any case the observer missed.
+   * The site re-renders dynamically, so besides an initial scan we watch the
+   * DOM with a MutationObserver (immediate updates) and debounce a full
+   * re-scan to catch anything the observer missed.
    */
 
-  /* ------------------------- 1. Comment hiding ------------------------- */
+  /* ------------------------------ Selectors ------------------------------ */
 
-  // Selector for the comment elements.
   const SELECTOR = '.workspace-grid-record-comment'
+  const HEADER_SELECTOR = '.workspace-header__left'
+  const RECORD_SELECTOR = '[data-locator^="client_name_new_timetable-record_"]'
+  const RECORD_ROW_SELECTOR = '.workspace-grid-record'
+  const LOADING_SELECTOR = '.page-loading-stub'
+  const HIGHLIGHT_CLASS = 'workspace-grid-record__highlighted'
 
-  // The exact text to look for. Curly/typographic quotes are normalized below,
-  // so this also matches “Яндекс.Карты” and «Яндекс.Карты» variants.
+  // Exact comment text to look for. Curly/typographic quotes are normalized
+  // below, so “Яндекс.Карты” / «Яндекс.Карты» variants match too.
   const TARGET_TEXT =
     '(Запись создана через "Яндекс.Карты". Пожалуйста, используйте номер мобильного телефона для связи с клиентом.)'
 
-  /**
-   * Normalize text for comparison:
-   * - collapse all whitespace runs to a single space,
-   * - convert typographic quotes („ “ ” « ») to straight double quotes,
-   * - trim leading/trailing whitespace.
-   */
-  function normalizeText(text) {
-    return String(text)
+  /* ------------------------------- 1. Comments ------------------------------ */
+
+  /** Collapse whitespace, normalize quotes, trim. */
+  const normalizeText = (text) =>
+    String(text)
       .replace(/[\u201C\u201D\u201E\u00AB\u00BB]/g, '"')
       .replace(/\s+/g, ' ')
       .trim()
-  }
 
   const NORMALIZED_TARGET = normalizeText(TARGET_TEXT)
-
-  // The same text with the wrapping parentheses stripped. Used to detect
-  // comments that contain the generated text alongside other content.
+  // Same text without the wrapping parentheses — to strip from mixed comments.
   const NORMALIZED_TARGET_NO_BRACKETS = normalizeText(
     TARGET_TEXT.replace(/^\(/, '').replace(/\)$/, ''),
   )
 
-  /** Hide the element (inline style wins over any stylesheet rules). */
-  function hideElement(el) {
-    if (el.style.display !== 'none') {
-      el.style.display = 'none'
-    }
-  }
-
   /**
-   * Check a single element:
-   * - hide it if its text is exactly the target text;
-   * - otherwise, if its text contains the target text (without its wrapping
-   *   brackets) next to other content, remove just that part from textContent.
+   * Hide the comment if its text is exactly the target; otherwise strip the
+   * target part (without brackets) from the comment, keeping the rest.
    */
   function processElement(el) {
-    if (!(el instanceof Element) || !el.matches(SELECTOR)) {
-      return
-    }
+    if (!(el instanceof Element) || !el.matches(SELECTOR)) return
     const text = normalizeText(el.textContent || '')
     if (text === NORMALIZED_TARGET) {
-      hideElement(el)
-      return
-    }
-    if (text.includes(NORMALIZED_TARGET_NO_BRACKETS)) {
+      el.style.display = 'none'
+    } else if (text.includes(NORMALIZED_TARGET_NO_BRACKETS)) {
       el.textContent = text.replace(NORMALIZED_TARGET_NO_BRACKETS, '').trim()
     }
   }
 
-  /** Scan a root (document or an added subtree) for matching comments. */
+  /** Process a root (the document or an added subtree). */
   function processRoot(root) {
-    if (root instanceof Element) {
-      processElement(root)
-    }
-    if (root.querySelectorAll) {
-      const found = root.querySelectorAll(SELECTOR)
-      for (const el of found) {
-        processElement(el)
-      }
-    }
+    if (root instanceof Element) processElement(root)
+    root.querySelectorAll?.(SELECTOR)?.forEach(processElement)
   }
 
-  /* ---------------------- 2. "new" counter badge ---------------------- */
+  /* ------------------------------- 2. Badge ------------------------------- */
 
-  // Headers to append the counter badge to.
-  const HEADER_SELECTOR = '.workspace-header__left'
-  // Elements to count ("new" timetable records created from Yandex Maps, etc.).
-  const RECORD_SELECTOR = '[data-locator^="client_name_new_timetable-record_"]'
-
-  // Keeps the single badge element created for each header element.
+  // One badge per header element.
   const badgeByHeader = new WeakMap()
 
   /** Get (creating if needed) the badge element for a header. */
@@ -116,7 +84,7 @@
         'margin-left:12px',
         'padding:2px 8px',
         'border-radius:10px',
-        'background:#ffffff',
+        'background:#fff',
         'color:#333',
         'font-size:12px',
         'font-weight:600',
@@ -126,19 +94,13 @@
         'vertical-align:middle',
         'cursor:pointer',
       ].join(';')
-      // Append at the end of the header.
       header.appendChild(badge)
       badgeByHeader.set(header, badge)
-
-      // Hover -> highlight the "new" record rows on the page.
       badge.addEventListener('mouseenter', () => setHighlight(true))
       badge.addEventListener('mouseleave', () => setHighlight(false))
     }
     return badge
   }
-
-  // The page's loading stub, shown while records are still being loaded.
-  const LOADING_SELECTOR = '.page-loading-stub'
 
   /** True while the page's loading stub is visible (records not loaded yet). */
   function isPageLoading() {
@@ -152,125 +114,93 @@
     )
   }
 
-  /** Refresh the counter badge in every header on the page. */
+  /** Refresh the counter badge in every header. */
   function updateBadges() {
     const count = document.querySelectorAll(RECORD_SELECTOR).length
-    const pageLoading = isPageLoading()
-    const headers = document.querySelectorAll(HEADER_SELECTOR)
-    for (const header of headers) {
+    let text
+    if (count > 0) {
+      text = `new: ${count}`
+    } else if (!isPageLoading()) {
+      text = 'new: 0'
+    }
+    // Still loading with no records — leave the badges untouched.
+    if (!text) return
+    for (const header of document.querySelectorAll(HEADER_SELECTOR)) {
       const badge = getBadge(header)
-      if (count > 0) {
-        const text = 'new: ' + count
-        if (badge.textContent !== text) {
-          badge.textContent = text
-        }
-      } else if (!pageLoading) {
-        // Page settled and there really are no new records — safe to show 0
-        // (while the loading stub is visible we leave the text untouched so
-        // the badge doesn't blink with "new: 0" during loading).
-        if (badge.textContent !== 'new: 0') {
-          badge.textContent = 'new: 0'
-        }
-      }
+      if (badge.textContent !== text) badge.textContent = text
     }
   }
 
-  /* ------------------- 3. Hover highlight of new records ------------------- */
+  /* ------------------------------ 3. Highlight ------------------------------ */
 
-  // Record rows to highlight.
-  const RECORD_ROW_SELECTOR = '.workspace-grid-record'
-  // Class added while a badge is hovered.
-  const HIGHLIGHT_CLASS = 'workspace-grid-record__highlighted'
-
-  // Rows we have highlighted; hover state flag.
+  // Rows we highlighted; hover state flag.
   const highlightedByUs = new Set()
   let hoverActive = false
 
-  /** All record rows that contain (or are) a matching "new" element. */
+  /** Record rows that contain (or are) a matching "new" element. */
   function findNewRecordRows() {
-    const rows = document.querySelectorAll(RECORD_ROW_SELECTOR)
-    const result = []
-    for (const row of rows) {
-      if (row.matches(RECORD_SELECTOR) || row.querySelector(RECORD_SELECTOR)) {
-        result.push(row)
-      }
-    }
-    return result
+    return [...document.querySelectorAll(RECORD_ROW_SELECTOR)].filter(
+      (row) => row.matches(RECORD_SELECTOR) || row.querySelector(RECORD_SELECTOR),
+    )
   }
 
-  /**
-   * Apply (on = true) or remove (on = false) the highlight class.
-   * Rebuilds the highlight set each time so it stays correct while the page
-   * changes during a hover.
-   */
+  /** Add (on = true) or remove (on = false) the highlight class. */
   function setHighlight(on) {
-    // Remove any classes added in a previous pass.
-    for (const row of highlightedByUs) {
-      row.classList.remove(HIGHLIGHT_CLASS)
-    }
+    for (const row of highlightedByUs) row.classList.remove(HIGHLIGHT_CLASS)
     highlightedByUs.clear()
     hoverActive = on
-    if (on) {
-      for (const row of findNewRecordRows()) {
-        row.classList.add(HIGHLIGHT_CLASS)
-        highlightedByUs.add(row)
-      }
+    if (!on) return
+    for (const row of findNewRecordRows()) {
+      row.classList.add(HIGHLIGHT_CLASS)
+      highlightedByUs.add(row)
     }
   }
 
-  /* --------------------------- Shared refresh --------------------------- */
+  /* ------------------------------ Shared refresh ------------------------------ */
 
-  /** Full document refresh: hide comments + keep highlights fresh. */
+  /** Full refresh: clean comments + keep highlights in sync. */
   function scanDocument() {
     processRoot(document)
-    if (hoverActive) {
-      // Keep the highlight in sync while the user is hovering a badge.
-      setHighlight(true)
-    }
+    if (hoverActive) setHighlight(true)
   }
 
-  // Debounced full re-scan: catches matches the observer might have missed
-  // (e.g. when an existing element's text is replaced in place).
+  // Debounced full re-scan: catches what the observer might have missed
+  // (e.g. an existing element's text replaced in place).
   let rescanTimer = null
 
   function scheduleRescan() {
-    if (rescanTimer) {
-      clearTimeout(rescanTimer)
-    }
+    clearTimeout(rescanTimer)
     rescanTimer = setTimeout(scanDocument, 150)
   }
 
-  // Watch for dynamically added nodes and text changes.
+  // Watch for DOM changes: clean new comments, refresh counters immediately,
+  // re-check the badge when the loading stub's visibility changes.
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
-      if (mutation.type === 'childList') {
-        for (const node of mutation.addedNodes) {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            // Hide matches inside the newly added subtree immediately.
-            processRoot(node)
+      switch (mutation.type) {
+        case 'childList':
+          for (const node of mutation.addedNodes) {
+            if (node.nodeType === Node.ELEMENT_NODE) processRoot(node)
           }
-        }
-        if (mutation.addedNodes.length > 0 || mutation.removedNodes.length > 0) {
-          // Update the counter immediately, outside the debounced re-scan.
-          updateBadges()
+          if (mutation.addedNodes.length || mutation.removedNodes.length) {
+            updateBadges()
+            scheduleRescan()
+          }
+          break
+        case 'characterData': {
+          const parent = mutation.target.parentElement
+          if (parent) processElement(parent)
           scheduleRescan()
+          break
         }
-      } else if (mutation.type === 'characterData') {
-        // Text of an existing node changed — re-check its parent element.
-        const parent = mutation.target.parentElement
-        if (parent) {
-          processElement(parent)
-        }
-        scheduleRescan()
-      } else if (mutation.type === 'attributes') {
-        // The loading stub's visibility may have changed (class/style).
-        updateBadges()
+        case 'attributes':
+          updateBadges()
+          break
       }
     }
   })
 
   function init() {
-    // Initial pass over already-rendered content.
     scanDocument()
     updateBadges()
     observer.observe(document.documentElement, {
@@ -288,7 +218,6 @@
     init()
   }
 
-  // Clean up the observer if the script is ever re-injected
-  // (e.g. after an extension reload on the same page).
+  // Clean up the observer if the script is ever re-injected.
   window.addEventListener('unload', () => observer.disconnect(), { once: true })
 })()
