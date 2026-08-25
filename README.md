@@ -1,7 +1,7 @@
 # YClients: Hide Yandex Maps Comments
 
 A Yandex Browser (and Chrome/Chromium) extension with tools for
-[yclients.com](https://yclients.com):
+the YClients timetable page ([yclients.com/timetable](https://yclients.com/timetable)):
 
 ## What it does
 
