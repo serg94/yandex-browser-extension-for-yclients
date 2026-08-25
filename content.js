@@ -200,9 +200,6 @@
     rescanTimer = setTimeout(scanDocument, 150);
   }
 
-  // Initial pass over already-rendered content.
-  scanDocument();
-
   // Watch for dynamically added nodes and text changes.
   const observer = new MutationObserver((mutations) => {
     for (const mutation of mutations) {
@@ -227,11 +224,21 @@
     }
   });
 
-  observer.observe(document.documentElement, {
-    childList: true,
-    subtree: true,
-    characterData: true,
-  });
+  function init() {
+    // Initial pass over already-rendered content.
+    scanDocument();
+    observer.observe(document.documentElement, {
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init, { once: true });
+  } else {
+    init();
+  }
 
   // Clean up the observer if the script is ever re-injected
   // (e.g. after an extension reload on the same page).
