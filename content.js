@@ -206,7 +206,6 @@
       // Keep the highlight in sync while the user is hovering a badge.
       setHighlight(true)
     }
-    console.count('SCANNED')
   }
 
   // Debounced full re-scan: catches matches the observer might have missed
