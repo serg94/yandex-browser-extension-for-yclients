@@ -9,11 +9,15 @@
    *    - exact match  -> the element is hidden;
    *    - partial match (the text without its wrapping brackets) -> that part
    *      is stripped from the comment, the rest stays.
-   * 2. Appends a "new: N" badge to every `.workspace-header__left`. The badge
-   *    shows "new: 0" only when the page is settled (the `.page-loading-stub`
-   *    is not visible), so it doesn't blink with "new: 0" while loading.
+   * 2. Appends a "new: X / TOTAL" badge to every `.workspace-header__left`,
+   *    where X is the number of "new" records and TOTAL is the number of
+   *    records on the page. The badge shows "new: 0 / TOTAL" only when the
+   *    page is settled (the `.page-loading-stub` is not visible), so it
+   *    doesn't blink with "new: 0" while loading.
    * 3. Hovering a badge highlights the matching `.workspace-grid-record` rows
-   *    with `workspace-grid-record__highlighted`.
+   *    with `workspace-grid-record__highlighted`. Clicking a badge pins the
+   *    highlight (it stays after the mouse leaves); clicking again unpins and
+   *    returns to hover-only behavior.
    *
    * The site re-renders dynamically, so besides an initial scan we watch the
    * DOM with a MutationObserver (immediate updates) and debounce a full
@@ -96,8 +100,19 @@
       ].join(';')
       header.appendChild(badge)
       badgeByHeader.set(header, badge)
-      badge.addEventListener('mouseenter', () => setHighlight(true))
-      badge.addEventListener('mouseleave', () => setHighlight(false))
+      badge.addEventListener('mouseenter', () => {
+        hoverActive = true
+        refreshHighlight()
+      })
+      badge.addEventListener('mouseleave', () => {
+        hoverActive = false
+        refreshHighlight()
+      })
+      // Click toggles the pinned highlight; hover/blur only apply when unpinned.
+      badge.addEventListener('click', () => {
+        pinned = !pinned
+        refreshHighlight()
+      })
     }
     return badge
   }
@@ -117,14 +132,10 @@
   /** Refresh the counter badge in every header. */
   function updateBadges() {
     const count = document.querySelectorAll(RECORD_SELECTOR).length
-    let text
-    if (count > 0) {
-      text = `new: ${count}`
-    } else if (!isPageLoading()) {
-      text = 'new: 0'
-    }
+    const total = document.querySelectorAll(RECORD_ROW_SELECTOR).length
     // Still loading with no records — leave the badges untouched.
-    if (!text) return
+    if (count === 0 && isPageLoading()) return
+    const text = `new: ${count} from ${total}`
     for (const header of document.querySelectorAll(HEADER_SELECTOR)) {
       const badge = getBadge(header)
       if (badge.textContent !== text) badge.textContent = text
@@ -133,9 +144,10 @@
 
   /* ------------------------------ 3. Highlight ------------------------------ */
 
-  // Rows we highlighted; hover state flag.
+  // Rows we highlighted; hover state flag and click-pinned state.
   const highlightedByUs = new Set()
   let hoverActive = false
+  let pinned = false
 
   /** Record rows that contain (or are) a matching "new" element. */
   function findNewRecordRows() {
@@ -148,7 +160,6 @@
   function setHighlight(on) {
     for (const row of highlightedByUs) row.classList.remove(HIGHLIGHT_CLASS)
     highlightedByUs.clear()
-    hoverActive = on
     if (!on) return
     for (const row of findNewRecordRows()) {
       row.classList.add(HIGHLIGHT_CLASS)
@@ -156,12 +167,17 @@
     }
   }
 
+  /** Highlight while a badge is hovered or pinned by a click. */
+  function refreshHighlight() {
+    setHighlight(pinned || hoverActive)
+  }
+
   /* ------------------------------ Shared refresh ------------------------------ */
 
   /** Full refresh: clean comments + keep highlights in sync. */
   function scanDocument() {
     processRoot(document)
-    if (hoverActive) setHighlight(true)
+    if (pinned || hoverActive) refreshHighlight()
   }
 
   // Debounced full re-scan: catches what the observer might have missed

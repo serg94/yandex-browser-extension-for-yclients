@@ -13,18 +13,21 @@ the YClients timetable page ([yclients.com/timetable](https://yclients.com/timet
    (Запись создана через "Яндекс.Карты". Пожалуйста, используйте номер мобильного телефона для связи с клиентом.)
    ```
 
-2. **Shows a "new" records counter.** Appends a `new: N` badge at the end of
-   every `.workspace-header__left` element, where `N` is the number of elements
-   matching `[data-locator^="client_name_new_timetable-record_"]` currently on
-   the page. When there are no new records it shows `new: 0` — but only once
-   the page's loading stub (`.page-loading-stub`) is hidden, so it doesn't
-   flash `new: 0` while records are still loading.
+2. **Shows a "new" records counter.** Appends a `new: X / TOTAL` badge at the
+   end of every `.workspace-header__left` element, where `X` is the number of
+   elements matching `[data-locator^="client_name_new_timetable-record_"]` and
+   `TOTAL` is the number of `.workspace-grid-record` rows currently on the
+   page. When there are no new records it shows `new: 0 / TOTAL` — but only
+   once the page's loading stub (`.page-loading-stub`) is hidden, so it
+   doesn't flash `new: 0` while records are still loading.
 
 3. **Highlights new records on hover.** While the mouse is over a badge, every
    `.workspace-grid-record` row that contains a matching
    `[data-locator^="client_name_new_timetable-record_"]` element gets the class
    `workspace-grid-record__highlighted` (the site's own styles decide how it
    looks). The class is removed as soon as the mouse leaves the badge.
+   Clicking a badge **pins** the highlight — it stays on even after the mouse
+   leaves; clicking again unpins and returns to hover-only behavior.
 
 All features keep working on dynamically loaded content: a `MutationObserver`
 watches the page and hides new comments / refreshes counters / keeps highlights
