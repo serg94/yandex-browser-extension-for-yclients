@@ -135,7 +135,7 @@
     const total = document.querySelectorAll(RECORD_ROW_SELECTOR).length
     // Still loading with no records — leave the badges untouched.
     if (count === 0 && isPageLoading()) return
-    const text = `new: ${count} from ${total}`
+    const text = `new: ${count} of ${total}`
     for (const header of document.querySelectorAll(HEADER_SELECTOR)) {
       const badge = getBadge(header)
       if (badge.textContent !== text) badge.textContent = text
