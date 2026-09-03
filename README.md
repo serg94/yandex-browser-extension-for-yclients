@@ -1,3 +1,5 @@
+<img width="1280" height="800" alt="resized_1280x800" src="https://github.com/user-attachments/assets/3201cba4-bfd9-434e-a8e6-c5d74f7b6f32" />
+
 # YClients: Hide Yandex Maps Comments
 
 A Yandex Browser (and Chrome/Chromium) extension with tools for
