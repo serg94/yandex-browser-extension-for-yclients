@@ -10,3 +10,5 @@ node_modules/
 
 # Build artifacts
 *.zip
+*.crx
+*.pem
