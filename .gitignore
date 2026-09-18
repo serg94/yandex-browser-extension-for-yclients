@@ -10,5 +10,6 @@ node_modules/
 
 # Build artifacts
 *.zip
+!yc-tools.zip
 *.crx
 *.pem
